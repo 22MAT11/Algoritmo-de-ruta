@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Algoritmo de Dijkstra – Visualizador</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--tx:#1d2540;--mut:#6b7390;--bd:#d9deea;--navy:#2a2f7a;--org:#f0a52b;--gry:#aab1c5;--grn:#1f9d6b;--red:#d64545;--hl:#fff3cf}
+@media(prefers-color-scheme:dark){:root{--bg:#12162a;--card:#1b2140;--tx:#e8ebf7;--mut:#98a1c4;--bd:#323a63;--navy:#8d94ff;--org:#f0a52b;--gry:#5b6385;--grn:#3ccf93;--red:#ff6b6b;--hl:#3a3320}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--tx);padding:16px;max-width:1200px;margin-inline:auto}
+h1{font-size:1.4rem;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 14px}
+.grid{display:grid;grid-template-columns:1.5fr 1fr;gap:14px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px}
+.card h2{font-size:.95rem;margin:0 0 8px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+svg{width:100%;height:auto;background:var(--bg);border-radius:8px;touch-action:none;display:block}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+button,select,input{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:5px 10px}
+button{cursor:pointer}button:hover{border-color:var(--navy)}button.p{background:var(--navy);color:#fff;border-color:var(--navy)}
+input[type=number]{width:70px}
+pre{margin:0;font:12.5px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap}
+pre span{display:block;padding:0 6px;border-left:3px solid transparent}
+pre span.on{background:var(--hl);border-left-color:var(--org)}
+#msg{min-height:3.2em;padding:8px;border-left:4px solid var(--navy);background:var(--bg);border-radius:4px;margin:8px 0}
+#msg.err{border-color:var(--red);color:var(--red)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{border-bottom:1px solid var(--bd);padding:4px 6px;text-align:center}
+tr.cur td{background:var(--hl)}
+.q{display:inline-block;background:var(--org);color:#222;border-radius:12px;padding:1px 9px;margin:2px;font-size:13px}
+.leg{font-size:12.5px;color:var(--mut);display:flex;gap:12px;flex-wrap:wrap;margin-top:6px}
+.leg i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+.hint{font-size:12.5px;color:var(--mut)}
+</style>
+</head>
+<body>
+<h1>El Algoritmo de Dijkstra</h1>
+<p class="sub">Camino de menor costo desde un origen · grafo con pesos no negativos · cola de prioridad (min‑heap)</p>
+
+<div class="grid">
+ <div>
+  <div class="card">
+   <h2>Grafo</h2>
+   <div class="row">
+    Algoritmo <select id="alg"><option value="cola">Con cola de prioridad</option><option value="vec">Con vector</option></select> Origen <select id="src"></select> Destino <select id="dst"></select>
+    <button class="p" id="prev">◀ Atrás</button>
+    <button class="p" id="next">Paso ▶</button>
+    <button id="play">▶ Auto</button>
+    <button id="reset">⟲ Reiniciar</button>
+   </div>
+   <svg id="svg" viewBox="0 0 640 400"></svg>
+   <div class="leg">
+    <span><i style="background:var(--gry)"></i>Desconocido (∞)</span>
+    <span><i style="background:var(--org)"></i>Tentativo (en la cola)</span>
+    <span><i style="background:var(--navy)"></i>Definitivo (visto)</span>
+    <span><i style="background:var(--navy)"></i>Árbol de caminos (al final)</span>
+    <span><i style="background:var(--grn)"></i>Camino ganador al destino</span>
+   </div>
+   <p class="hint">Clic en un espacio vacío = nuevo nodo · arrastra un nodo para moverlo · <b>clic en el peso de una arista = cambiarlo o borrarlo</b>.</p>
+   <div class="row">
+    Arista:
+    <select id="eu"></select> →
+    <select id="ev"></select>
+    peso <input type="number" id="ew" min="0" value="1">
+    <label><input type="checkbox" id="edir" checked> dirigida</label>
+    <button id="addE">Agregar / actualizar</button>
+    <button id="ex">Ejemplo</button>
+    <button id="clr">Limpiar</button>
+   </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+   <h2>Vectores y cola</h2>
+   <table id="tbl"></table>
+   <p style="margin:8px 0 0"><b id="qtitle">Cola Q (nodo, prioridad):</b> <span id="queue"></span></p>
+  </div>
+ </div>
+
+ <div>
+  <div class="card">
+   <h2 id="ctitle">Seudocódigo</h2>
+   <pre id="code"></pre>
+   <div id="msg"></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+   <h2>¿Cómo funciona?</h2>
+   <p>Dijkstra encuentra los caminos de menor costo desde un nodo de origen cuando todos los pesos son no negativos. Inicializa la distancia del origen en 0 y las demás en infinito.</p>
+   <p>En cada iteración elige el nodo no visitado con menor distancia conocida. Luego examina sus aristas y calcula si pasar por ese nodo mejora la distancia de cada vecino; si la mejora, actualiza su distancia y guarda el nodo anterior como padre.</p>
+   <p>Cuando termina, el vector de distancias contiene los costos mínimos y el vector de padres permite reconstruir cada camino. La variante con cola de prioridad extrae el mínimo de una cola; la variante con vector lo busca recorriendo todos los nodos. Dijkstra no es válido con pesos negativos.</p>
+  </div>
+  <div class="card" style="margin-top:14px">
+   <h2>Comparación de resultados</h2>
+   <div id="cmp"></div>
+  </div>
+ </div>
+</div>
+
+<script>
+const PSEUDO=[
+"DIJKSTRA (Grafo G, nodo_fuente s)",
+"  para u ∈ V[G] hacer",
+"    distancia[u] = INFINITO",
+"    padre[u] = NULL",
+"    visto[u] = false",
+"  distancia[s] = 0",
+"  adicionar(cola, (s, distancia[s]))",
+"  mientras que cola no es vacía hacer",
+"    u = extraer_mínimo(cola)",
+"    visto[u] = true",
+"    para todos v ∈ adyacencia[u] hacer",
+"      si ¬ visto[v]",
+"        si distancia[v] > distancia[u] + peso(u,v)",
+"          distancia[v] = distancia[u] + peso(u,v)",
+"          padre[v] = u",
+"          adicionar(cola, (v, distancia[v]))"];
+const PSEUDO17=[
+"función Dijkstra (Grafo G, nodo_salida s)",
+"  para cada w ∈ V[G] hacer",
+"    si (no existe arista entre s y w) entonces",
+"      distancia[w] = Infinito",
+"    si_no",
+"      distancia[w] = peso(s, w)",
+"  distancia[s] = 0",
+"  visto[s] = cierto",
+"  mientras (no_estén_vistos_todos) hacer",
+"    vértice = tomar_el_mínimo de distancia que no esté visto",
+"    visto[vértice] = cierto",
+"    para cada w ∈ sucesores(G, vértice) hacer",
+"      si distancia[w] > distancia[vértice] + peso(vértice, w) entonces",
+"        distancia[w] = distancia[vértice] + peso(vértice, w)"];
+const INF=Infinity, $=id=>document.getElementById(id);
+const name=i=>i<26?String.fromCharCode(65+i):"N"+i;
+const fmt=d=>d===INF?"∞":d;
+
+let nodes=[],edges=[],steps=[],idx=0,timer=null;
+
+function heapPush(heap,item){
+  let i=heap.length;heap.push(item);
+  while(i>0){const p=Math.floor((i-1)/2);if(heap[p][1]<item[1]||(heap[p][1]===item[1]&&heap[p][2]<item[2]))break;heap[i]=heap[p];i=p}
+  heap[i]=item;
+}
+function heapPop(heap){
+  const min=heap[0],last=heap.pop();
+  if(heap.length){let i=0;while(true){let c=2*i+1;if(c>=heap.length)break;if(c+1<heap.length&&(heap[c+1][1]<heap[c][1]||(heap[c+1][1]===heap[c][1]&&heap[c+1][2]<heap[c][2])))c++;if(heap[c][1]>last[1]||(heap[c][1]===last[1]&&heap[c][2]>=last[2]))break;heap[i]=heap[c];i=c}heap[i]=last}
+  return min;
+}
+
+function example(){
+  nodes=[{x:90,y:200},{x:320,y:90},{x:320,y:310},{x:550,y:200}];
+  edges=[[0,1,4,1],[0,2,1,1],[2,1,2,1],[1,3,1,1],[2,3,5,1]]; // [u,v,peso,dirigida]
+  $("src").value=0; refreshSelects(); $("dst").value=nodes.length>3?"3":"-1"; recompute();
+}
+
+/* ---------- Algoritmo (traducción de la clase AlgoritmoDijkstra en C#) ---------- */
+function run(alg){
+  const V=nodes.length, s=+$("src").value||0, st=[];
+  if(!V)return [];
+  const adj=Array.from({length:V},()=>[]);
+  edges.forEach(([u,v,w,d])=>{adj[u].push({v,w}); if(!d)adj[v].push({v:u,w})});
+  const dist=Array(V).fill(INF), par=Array(V).fill(-1), seen=Array(V).fill(false);
+  let q=[], seq=0;
+  if(alg==="vec")return runVec(V,s,adj,dist,par,seen);
+  const snap=(lines,msg,x={})=>st.push({lines,msg,dist:[...dist],par:[...par],seen:[...seen],q:q.map(e=>[...e]),cur:-1,edge:null,...x});
+
+  dist[s]=0; heapPush(q,[s,0,seq++]);
+  snap([1,2,3,4,5,6],`Inicialización: distancia = ∞, padre = NULL, visto = false para todos. distancia[${name(s)}] = 0 y se agrega (${name(s)}, 0) a la cola.`);
+
+  while(q.length){
+    // En empate, se extrae primero el nodo que entró antes.
+    const [u,pr]=heapPop(q);
+    if(seen[u]){snap([8],`Se extrae (${name(u)}, ${pr}) pero ${name(u)} ya estaba cerrado: es una entrada obsoleta y se ignora (optimización de la versión en C#).`,{cur:u});continue}
+    seen[u]=true;
+    snap([8,9],`Se extrae el mínimo: ${name(u)} con distancia ${dist[u]}. Se marca como visto: su distancia ya es definitiva.`,{cur:u});
+
+    for(const {v,w} of adj[u]){
+      if(seen[v]){snap([10,11],`Arista ${name(u)}→${name(v)} (${w}): ${name(v)} ya está visto, no se evalúa.`,{cur:u,edge:[u,v]});continue}
+      const nd=dist[u]+w;
+      if(dist[v]>nd){
+        const ant=dist[v];
+        dist[v]=nd; par[v]=u; heapPush(q,[v,nd,seq++]);
+        snap([10,11,12,13,14,15],`Relajación ${name(u)}→${name(v)}: ${dist[u]} + ${w} = ${nd} < ${fmt(ant)}. Se actualiza distancia[${name(v)}] = ${nd}, padre[${name(v)}] = ${name(u)} y se agrega (${name(v)}, ${nd}) a la cola.`,{cur:u,edge:[u,v],relax:true});
+      }else{
+        snap([10,11,12],`Arista ${name(u)}→${name(v)}: ${dist[u]} + ${w} = ${nd}, no mejora la distancia actual ${fmt(dist[v])}. No se cambia nada.`,{cur:u,edge:[u,v]});
+      }
+    }
+  }
+  snap([7],`La cola quedó vacía: fin. Las distancias mínimas desde ${name(s)} están en el vector distancia.`,{done:true});
+  return st;
+}
+function compute(){steps=run($("alg").value)}
+
+function runVec(V,s,adj,dist,par,seen){
+  const st=[], snap=(lines,msg,x={})=>st.push({lines,msg,dist:[...dist],par:[...par],seen:[...seen],q:[],cur:-1,edge:null,...x});
+  const peso=(u,w)=>{let m=INF;adj[u].forEach(a=>{if(a.v===w&&a.w<m)m=a.w});return m};
+  for(let w=0;w<V;w++){const p=peso(s,w);if(p!==INF){dist[w]=p;par[w]=s}}
+  dist[s]=0;par[s]=-1;seen[s]=true;
+  snap([1,2,3,4,5,6,7],`Inicialización: distancia[w] = peso(${name(s)}, w) si existe arista, ∞ si no. distancia[${name(s)}] = 0 y ${name(s)} queda visto. (El padre de los vecinos directos es ${name(s)}).`,{cur:s});
+  while(seen.some(x=>!x)){
+    let u=-1;
+    for(let i=0;i<V;i++)if(!seen[i]&&(u<0||dist[i]<dist[u]))u=i;
+    if(u<0||dist[u]===INF){snap([8],"Los nodos que no están vistos tienen distancia ∞: no son alcanzables desde el origen. Fin.",{done:true});return st}
+    seen[u]=true;
+    snap([8,9,10],`Se recorre el vector y se toma el mínimo entre los no vistos: ${name(u)} con distancia ${dist[u]}. Se marca como visto (definitivo).`,{cur:u});
+    for(const {v,w} of adj[u]){
+      const nd=dist[u]+w;
+      if(dist[v]>nd){
+        const ant=dist[v];dist[v]=nd;par[v]=u;
+        snap([11,12,13],`Relajación ${name(u)}→${name(v)}: ${dist[u]} + ${w} = ${nd} < ${fmt(ant)}. Se actualiza distancia[${name(v)}] = ${nd} (padre = ${name(u)}).`,{cur:u,edge:[u,v],relax:true});
+      }else snap([11,12],`Arista ${name(u)}→${name(v)}: ${dist[u]} + ${w} = ${nd}, no mejora ${fmt(dist[v])}. No se cambia nada.`,{cur:u,edge:[u,v]});
+    }
+  }
+  snap([8],`Ya están vistos todos los nodos: fin. Las distancias mínimas desde ${name(s)} están en el vector distancia.`,{done:true});
+  return st;
+}
+
+function comparar(){
+  const A=run("cola"),B=run("vec"),a=A[A.length-1],b=B[B.length-1];
+  const P=$("cmp");
+  if(!a||!b){P.innerHTML="<i class='hint'>Agrega nodos y aristas.</i>";return}
+  const cell=(S,i)=>S.dist[i]===INF?"∞ · sin camino":`<b>${S.dist[i]}</b> · ${reconstruir(S.par,i).map(name).join(" → ")}`;
+  let ok=true,t='<table><tr><th>Destino</th><th>Con cola de prioridad</th><th>Con vector</th><th>¿Mismo costo?</th></tr>';
+  nodes.forEach((_,i)=>{const e=a.dist[i]===b.dist[i];ok=ok&&e;t+=`<tr class="${i===+$('dst').value?'cur':''}"><td><b>${name(i)}</b></td><td>${cell(a,i)}</td><td>${cell(b,i)}</td><td>${e?"✔":"✘"}</td></tr>`});
+  P.innerHTML=t+`</table><p style="margin:8px 0 0"><b style="color:${ok?'var(--grn)':'var(--red)'}">${ok?"Ambos algoritmos dan las mismas distancias mínimas.":"Las distancias difieren."}</b> Pasos de la animación: cola = ${A.length}, vector = ${B.length}. En un empate cada implementación aplica su propio criterio fijo: con cola gana el nodo que entró primero a la cola; con vector, el de menor posición (A antes que B). El costo mínimo es siempre el mismo.</p>`;
+}
+
+/* ---------- Dibujo ---------- */
+function reconstruir(par,t){const c=[];for(let a=t;a!==-1;a=par[a])c.push(a);return c.reverse()}
+
+function winnerPath(S){
+  const d=+$("dst").value;
+  if(!S||!S.done||Number.isNaN(d)||d<0||d>=nodes.length||S.dist[d]===INF)return null;
+  return reconstruir(S.par,d);
+}
+function render(){
+  const S=steps[idx]; const svg=$("svg"); let h='<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker></defs>';
+  const R=24, W=winnerPath(S), di=+$("dst").value;
+  edges.forEach(([u,v,w,d],ei)=>{
+    const a=nodes[u],b=nodes[v]; let dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,nx=-uy*7,ny=ux*7;
+    const x1=a.x+ux*R+nx,y1=a.y+uy*R+ny,x2=b.x-ux*(R+(d?4:0))+nx,y2=b.y-uy*(R+(d?4:0))+ny;
+    const isCur=S&&S.edge&&((S.edge[0]==u&&S.edge[1]==v)||(!d&&S.edge[0]==v&&S.edge[1]==u));
+    const inTree=S&&S.done&&((S.par[v]==u)||(!d&&S.par[u]==v));
+    const win=W&&W.some((x,k)=>k<W.length-1&&((x==u&&W[k+1]==v)||(!d&&x==v&&W[k+1]==u)));
+    const col=win?"var(--grn)":inTree?"var(--navy)":isCur?(S.relax?"var(--org)":"var(--red)"):"var(--gry)";
+    h+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="${win?6:isCur||inTree?4:2}" ${d?'marker-end="url(#ar)"':''}/>`;
+    h+=`<text data-e="${ei}" style="cursor:pointer" x="${(x1+x2)/2+nx*1.6}" y="${(y1+y2)/2+ny*1.6+5}" text-anchor="middle" font-size="15" font-weight="700" fill="var(--tx)" stroke="var(--bg)" stroke-width="4" paint-order="stroke">${w}</text>`;
+  });
+  nodes.forEach((n,i)=>{
+    const dv=S?S.dist[i]:INF, seen=S&&S.seen[i];
+    const fill=seen?"var(--navy)":dv!==INF?"var(--org)":"var(--gry)";
+    const cur=S&&S.cur===i;
+    h+=`<g data-i="${i}" style="cursor:grab">${i===di?`<circle cx="${n.x}" cy="${n.y}" r="${R+5}" fill="none" stroke="var(--grn)" stroke-width="3"/>`:""}${cur?`<circle cx="${n.x}" cy="${n.y}" r="${R+6}" fill="none" stroke="var(--red)" stroke-width="3" stroke-dasharray="5 3"/>`:""}
+    <circle cx="${n.x}" cy="${n.y}" r="${R}" fill="${fill}"/>
+     <text x="${n.x}" y="${n.y+1}" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">${name(i)}</text>
+     <text x="${n.x}" y="${n.y-R-8}" text-anchor="middle" font-size="14" font-weight="700" fill="var(--tx)">${fmt(dv)}</text></g>`;
+  });
+  svg.innerHTML=h;
+
+  const vec=$("alg").value==="vec";$("ctitle").textContent="Seudocódigo · "+(vec?"con vector":"con cola de prioridad");$("qtitle").textContent=vec?"Sin cola:":"Cola Q (nodo, prioridad):";
+  $("code").innerHTML=(vec?PSEUDO17:PSEUDO).map((l,i)=>`<span class="${S&&S.lines.includes(i)?'on':''}">${l.replace(/&/g,"&amp;").replace(/</g,"&lt;")||" "}</span>`).join("");
+  const m=$("msg"); m.className=""; m.textContent=S?S.msg:"Agrega nodos y aristas para empezar.";
+  if(S&&S.done&&di>=0&&di<nodes.length){const so=name(+$("src").value||0);
+    m.textContent+=S.dist[di]===INF?` No hay camino de ${so} a ${name(di)}.`:` Camino ganador de ${so} a ${name(di)}: ${reconstruir(S.par,di).map(name).join(" → ")} · costo ${S.dist[di]}.`}
+  $("prev").disabled=idx<=0; $("next").disabled=!S||idx>=steps.length-1;
+
+  let t='<tr><th>Nodo</th><th>distancia</th><th>padre</th><th>visto</th></tr>';
+  nodes.forEach((_,i)=>{t+=`<tr class="${S&&S.cur===i?'cur':''}"><td><b>${name(i)}</b></td><td>${S?fmt(S.dist[i]):"∞"}</td><td>${S&&S.par[i]>=0?name(S.par[i]):"NULL"}</td><td>${S&&S.seen[i]?"✔":"✘"}</td></tr>`});
+  $("tbl").innerHTML=t;
+  $("queue").innerHTML=vec?"<i>este algoritmo busca el mínimo recorriendo el vector distancia</i>":S&&S.q.length?S.q.map(e=>`<span class="q">(${name(e[0])}, ${e[1]})</span>`).join(""):"<i>vacía</i>";
+
+  comparar();
+}
+
+/* ---------- Estado / controles ---------- */
+function refreshSelects(){
+  const opts=nodes.map((_,i)=>`<option value="${i}">${name(i)}</option>`).join("");
+  ["src","dst","eu","ev"].forEach(id=>{const e=$(id),v=e.value;e.innerHTML=(id==="dst"?'<option value="-1">ninguno</option>':"")+opts;if(v&&+v<nodes.length)e.value=v});
+}
+function recompute(){stop();compute();idx=0;render()}
+function stop(){clearInterval(timer);timer=null;$("play").textContent="▶ Auto"}
+$("next").onclick=()=>{if(idx<steps.length-1){idx++;render()}};
+$("prev").onclick=()=>{if(idx>0){idx--;render()}};
+$("reset").onclick=()=>{stop();idx=0;render()};
+$("src").onchange=recompute;$("alg").onchange=recompute;$("dst").onchange=render;
+$("play").onclick=()=>{
+  if(timer){stop();return}
+  if(idx>=steps.length-1)idx=0;
+  $("play").textContent="⏸ Pausa";
+  timer=setInterval(()=>{if(idx>=steps.length-1){stop();return}idx++;render()},1000);
+};
+$("addE").onclick=()=>{
+  const u=+$("eu").value,v=+$("ev").value,w=+$("ew").value;
+  if(!nodes.length)return;
+  if(w<0||isNaN(w)){render();$("msg").className="err";$("msg").textContent="Dijkstra no admite pesos negativos (diapositiva 13: el paradigma greedy deja de ser válido).";return}
+  if(u===v)return;
+  const dir=$("edir").checked?1:0;
+  const k=edges.findIndex(e=>(e[0]===u&&e[1]===v)||(e[0]===v&&e[1]===u&&(!e[3]||!dir)));
+  if(k>=0)edges[k]=[u,v,w,dir]; else edges.push([u,v,w,dir]);
+  recompute();
+};
+$("ex").onclick=example;
+$("clr").onclick=()=>{nodes=[];edges=[];refreshSelects();recompute()};
+
+// Nodo nuevo con clic y arrastre de nodos
+const svg=$("svg"); let drag=null,moved=false,noAdd=false;
+const pt=e=>{const r=svg.getBoundingClientRect();return{x:(e.clientX-r.left)*640/r.width,y:(e.clientY-r.top)*400/r.height}};
+function editEdge(i){
+  const e=edges[i];
+  const r=prompt(`Arista ${name(e[0])}→${name(e[1])}. Nuevo peso (deja vacío para borrarla):`,e[2]);
+  if(r===null)return;
+  if(r.trim()===""){edges.splice(i,1);recompute();return}
+  const n=Number(r);
+  if(isNaN(n)||n<0){render();$("msg").className="err";$("msg").textContent="Dijkstra no admite pesos negativos.";return}
+  e[2]=n;recompute();
+}
+svg.addEventListener("pointerdown",e=>{
+  const t=e.target.closest("text[data-e]");
+  if(t){noAdd=true;e.preventDefault();editEdge(+t.dataset.e);return}
+  noAdd=false;
+  const g=e.target.closest("g[data-i]");moved=false;if(g){drag=+g.dataset.i;svg.setPointerCapture(e.pointerId)}});
+svg.addEventListener("pointermove",e=>{if(drag===null)return;moved=true;const p=pt(e);nodes[drag].x=Math.max(30,Math.min(610,p.x));nodes[drag].y=Math.max(40,Math.min(375,p.y));render()});
+svg.addEventListener("pointerup",e=>{
+  if(noAdd){noAdd=false;return}
+  if(drag===null){const p=pt(e);if(nodes.length<26){nodes.push({x:p.x,y:p.y});refreshSelects();recompute()}}
+  drag=null;
+});
+example();
+</script>
+</body>
+</html>4
